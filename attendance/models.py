@@ -19,6 +19,9 @@ class Department(models.Model):
     description = models.TextField()
     created_at = models.DateField()
     updated_at = models.DateField()
+
+    def __str__(self):
+        return self.name
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('ADMIN', 'Admin'),
