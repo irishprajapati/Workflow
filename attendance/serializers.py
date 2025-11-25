@@ -1,5 +1,6 @@
 from .models import * 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import serializers
 
 """
 serializer to show role and username while logging
@@ -14,3 +15,7 @@ class CustomTokenObtainPair(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['username'] = self.user.username
         return data
+    
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField() #charfield for storing passwords
