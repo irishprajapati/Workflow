@@ -30,6 +30,7 @@ class User(AbstractUser):
         ("EMPLOYEE", 'Employee')]
     
     role = models.CharField(max_length=20, choices = ROLE_CHOICES, default='EMPLOYEE', db_index=True)
+    is_verified = models.BooleanField(default=False)
     department = models.ForeignKey(Department, null = True, on_delete=models.SET_NULL)
 class Employee(models.Model):
     GENDER_CHOICES = [
