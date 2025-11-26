@@ -1,4 +1,6 @@
 from .models import User,Employee,Department
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
@@ -9,6 +11,7 @@ from rest_framework.response import Response
 from django.contrib.auth import authenticate
 from rest_framework import status
 class LoginAPI(APIView):
+    @swagger_auto_schema(request_body=UserLoginSerializer,tags=['Authentication'])
     def post(self, request): #hit the post request
         try:
             serializer = UserLoginSerializer(data = request.data)
@@ -42,6 +45,7 @@ class LoginAPI(APIView):
                 'error':str(e)
             }, status= status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserRegistrationView(APIView):
+    @swagger_auto_schema(request_body=UserRegistrationSerializer,tags=['Authentication'])
     def post(self, request):
         serializer = UserRegistrationSerializer(data = request.data)
         if serializer.is_valid():
