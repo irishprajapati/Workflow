@@ -4,6 +4,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import AbstractUser
 from rest_framework.validators import UniqueValidator
 from datetime import date
+from django.db import transaction, IntegrityError
 """
 serializer to show role and username while logging
 """
@@ -32,7 +33,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('username', 'email', 'phone','password', 'password_confirm', 'date_of_birth')
-        extra_kwagrs ={
+        extra_kwargs ={
             'password':{'write_only':True},
             'password_confirm':{'write_only':True}
         }
@@ -46,7 +47,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if data['password'] != data['password_confirm']:
             raise serializers.ValidationError({"password": 'Password dont match'})
         return data
-    
+    @transaction.atomic
     def create(self,validated_data):
         dob= validated_data.pop('date_of_birth')
         phone=validated_data.pop('phone')
@@ -65,3 +66,34 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             employment_type='FULL_TIME'
         )
         return user
+class UserSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    class Meta:
+        model=User
+        fields=['email']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['username']=instance.get_username()
+        return data
+    
+class EmployeeSerializer(serializers.ModelSerializer):
+    user = UserSerializer
+    class Meta:
+        model=Employee
+        fields="__all__"
+        read_only_fields =["is_active"]
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        user_data=validated_data.pop("user",{})
+        user = instance.user
+        for attr, value in user_data.items():
+            setattr(user,attr, value)
+        user.save()
+        for attr,value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
