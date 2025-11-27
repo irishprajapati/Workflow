@@ -1,4 +1,7 @@
 from .models import User,Employee,Department
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from django.db import IntegrityError, transaction
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
@@ -9,6 +12,7 @@ from rest_framework.response import Response
 from django.contrib.auth import authenticate
 from rest_framework import status
 class LoginAPI(APIView):
+    @swagger_auto_schema(request_body=UserLoginSerializer,tags=['Authentication'])
     def post(self, request): #hit the post request
         try:
             serializer = UserLoginSerializer(data = request.data)
@@ -42,23 +46,30 @@ class LoginAPI(APIView):
                 'error':str(e)
             }, status= status.HTTP_500_INTERNAL_SERVER_ERROR)
 class UserRegistrationView(APIView):
+    @swagger_auto_schema(request_body=UserRegistrationSerializer,tags=['Authentication'])
     def post(self, request):
         serializer = UserRegistrationSerializer(data = request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            user.is_verified = False
-            signer = TimestampSigner()
-            token = signer.sign(user.pk)
-            verification_url = f"http://127.0.0.1:8000/attendance/verify/{token}/"
+            try:
+                with transaction.atomic():
+                    user = serializer.save()
+                    user.is_verified = False
+                    signer = TimestampSigner()
+                    token = signer.sign(user.pk)
+                    verification_url = f"http://127.0.0.1:8000/attendance/verify/{token}/"
 
-            send_mail(
-                subject = 'verify your account',
-                message = f"Click here to verify your account: {verification_url}",
-                from_email=settings.EMAIL_HOST_USER,
-                recipient_list=[user.email],
-                fail_silently=False
-            )
-            return Response({"Message":"User registered. Check your email to verify"}, status=status.HTTP_201_CREATED)
+                    send_mail(
+                        subject = 'verify your account',
+                        message = f"Click here to verify your account: {verification_url}",
+                        from_email=settings.EMAIL_HOST_USER,
+                        recipient_list=[user.email],
+                        fail_silently=False
+                    )
+                return Response({"Message":"User registered. Check your email to verify"}, status=status.HTTP_201_CREATED)
+            except IntegrityError as e:
+                return Response({
+                    "error": "Integrity Error: " + str(e) 
+                }, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
 class VerifyEmail(APIView):

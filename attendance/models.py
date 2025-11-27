@@ -17,8 +17,8 @@ nepali_phone_regex = RegexValidator(
 class Department(models.Model):
     name = models.CharField(max_length=155, db_index=True, unique=True)
     description = models.TextField()
-    created_at = models.DateField()
-    updated_at = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
@@ -31,15 +31,18 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ['username']
+
+    def __str__(self):
+        return self.email
     
     role = models.CharField(max_length=20, choices = ROLE_CHOICES, default='EMPLOYEE', db_index=True)
     is_verified = models.BooleanField(default=False)
     department = models.ForeignKey(Department, null = True, on_delete=models.SET_NULL)
 class Employee(models.Model):
     GENDER_CHOICES = [
-        ('MALE', 'M'),
-        ('FEMALE', 'F'),
-        ('OTHER', 'O')
+        ('M', 'Male'),
+        ('F', 'Female'),
+        ('O', 'Other')
     ]
     EMPLOYMENT_TYPE = [
         ('FULL_TIME', 'Full Time'),
@@ -51,18 +54,14 @@ class Employee(models.Model):
     phone = models.CharField(_('Phone'), max_length=10, validators=[nepali_phone_regex], unique=True, db_index=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES)
     date_of_birth = models.DateField(null=False, blank = False)
-
-    #company related information
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True)
     designation = models.CharField(max_length=200, null = False)
     employment_type = models.CharField(max_length=20, choices = EMPLOYMENT_TYPE, default = "FULL_TIME")
     date_joined = models.DateTimeField(auto_now_add=True)
     date_left = models.DateField(null = True, blank = True)
-
-    #status and tracking
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} ({self.department.name if self.department else 'No Dept'})"
+        return f"{self.user.username}"
