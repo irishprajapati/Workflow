@@ -7,10 +7,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.core.mail import send_mail
 from django.conf import settings
-from .serializers import UserLoginSerializer, UserRegistrationSerializer
+from .serializers import *
 from rest_framework.response import Response
 from django.contrib.auth import authenticate
-from rest_framework import status
+from rest_framework import status, viewsets
 class LoginAPI(APIView):
     @swagger_auto_schema(request_body=UserLoginSerializer,tags=['Authentication'])
     def post(self, request): #hit the post request
@@ -85,3 +85,7 @@ class VerifyEmail(APIView):
         user.is_active = True
         user.save()
         return Response({"Message": "Email verified successfully. You can now login"})
+    
+
+class EmployeeView(viewsets.ModelViewset):
+    serializer = EmployeeSerializer
