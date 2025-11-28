@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 @receiver(post_save,sender = User)
 def create_employee_for_user(sender, instance, created, **kwargs):
-    if created:
+    if created and instance.role =='EMPLOYEE':
         Employee.objects.create(user=instance)
 @receiver(pre_save, sender=AttendanceRecord)
 def auto_checkout(sender, instance, **kwargs):
@@ -17,6 +17,6 @@ def auto_checkout(sender, instance, **kwargs):
             shift_end = datetime.combine(instance.date, dept.work_end_time)
             now = timezone.now()
             if now>shift_end:
-                instance.checkout_out = shift_end
+                instance.check_out = shift_end
                 instance.is_auto_checkout=True
 
