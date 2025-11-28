@@ -78,7 +78,7 @@ class AttendanceRecord(models.Model):
     ATTENDANCE_CHOICES = [
         ('preseent', 'Present'),
         ('half_day', 'Half Day'),
-        ('on_leave', 'Onleave(Paid)')
+        ('on_leave', 'On leave'),
         ('unpaid_leave', 'Unpaid Leave'),
         ('holiday', 'Holiday'),
         ('weekend', 'Weekend'),
@@ -109,7 +109,8 @@ class AttendanceRecord(models.Model):
             return
         
         if not self.check_in:
-            self.status='absent' & self.hours_worked=0.00
+            self.status='absent'
+            self.hours_worked=0.00
             return
         dept = self.employee.department
         if not dept:
