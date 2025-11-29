@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from decouple import config
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,6 +50,16 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon':'2/minute',
+        'user':'1000/hour',
+        'burst': '10/min',
+        'sustained': '15/hour'
+    }
 }
 AUTH_USER_MODEL = 'attendance.User'
 
@@ -101,6 +112,13 @@ DATABASES = {
     "sslmode": os.getenv("DB_SSLMODE", "disable")
     }
     },
+}
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  
+    'ROTATE_REFRESH_TOKENS': False,                 
+    'BLACKLIST_AFTER_ROTATION': False,         
+    # Other settings as needed
 }
 
 #swagger settings
