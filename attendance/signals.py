@@ -2,7 +2,8 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.conf import settings
 from .models import Employee, User, AttendanceRecord
-from datetime import datetime, timezone
+from datetime import datetime
+from django.utils import timezone
 
 @receiver(post_save,sender = User)
 def create_employee_for_user(sender, instance, created, **kwargs):

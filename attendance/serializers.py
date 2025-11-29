@@ -97,3 +97,25 @@ class EmployeeSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+class CheckInSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    check_in_time = serializers.DateTimeField()
+class CheckOutSerializer(serializers.Serializer):
+    employee_id = serializers.IntegerField()
+    check_out_time = serializers.DateTimeField()
+
+class AttendaceRecordSerializer(serializers.ModelSerializer):
+    employee_username = serializers.CharField(source='employee.user.username', read_only = True)
+
+    class Meta:
+        model = AttendanceRecord
+        fields = "__all__"
+        read_only_fields = fields
+
+class AttendanceSummarySerializer(serializers.ModelSerializer):
+    total_present = serializers.IntegerField()
+    total_half_days = serializers.IntegerField()
+    total_absent = serializers.IntegerField()
+    total_late = serializers.IntegerField()
+    records = AttendaceRecordSerializer(many=True)

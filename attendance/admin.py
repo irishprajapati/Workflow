@@ -5,3 +5,5 @@ from .models import *
 admin.site.register(User)
 admin.site.register(Department)
 admin.site.register(Employee)
+admin.site.register(AttendanceRecord)
+admin.site.register(LeaveRequest)
