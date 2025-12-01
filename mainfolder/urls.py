@@ -19,8 +19,7 @@ from django.urls import path,include
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from attendance import urls
-
+from attendance.api.v1 import urls
 schema_view = get_schema_view(
     openapi.Info(
         title="Attendance&Payroll",
@@ -32,9 +31,17 @@ schema_view = get_schema_view(
     ),
     public=True,
     permission_classes=(permissions.AllowAny,),
+    patterns=[  # <-- THIS MAKES SWAGGER USE /api/v1/ prefix
+        path("api/v1/", include("attendance.api.v1.urls")),
+    ],
 )
+
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('attendance/', include('attendance.urls')),
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name = 'schema-swagger-ui')
+
+    # Versioned API
+    path("api/v1/", include("attendance.api.v1.urls")),
+
+    # Swagger UI
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
 ]
