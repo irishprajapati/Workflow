@@ -51,15 +51,16 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
+        # 'rest_framework.throttling.AnonRateThrottle',
+        # 'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon':'2/minute',
-        'user':'1000/hour',
-        'burst': '10/min',
-        'sustained': '15/hour'
+        # 'anon':'2/minute',
+        # 'user':'1000/hour',
+        # 'burst': '10/min',
+        # 'sustained': '15/hour'
     }
+
 }
 AUTH_USER_MODEL = 'attendance.User'
 
@@ -94,6 +95,17 @@ TEMPLATES = [
         },
     },
 ]
+# CACHES = {
+#     "default":{
+#         "BACKEND": "django.redis.cache.RedisCache",
+#         "LOCATION":"redis://127.0.0.1:6379/1",
+#         "OPTIONS":{
+#             "CLIENT_CLASS": "django_redis.client.DefaultClient",
+#             "TIMEOUT":300,
+#         }
+#     }
+# }
+# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 WSGI_APPLICATION = 'mainfolder.wsgi.application'
 
