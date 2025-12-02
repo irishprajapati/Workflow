@@ -51,14 +51,14 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_THROTTLE_CLASSES': [
-        # 'rest_framework.throttling.AnonRateThrottle',
-        # 'rest_framework.throttling.UserRateThrottle'
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        # 'anon':'2/minute',
-        # 'user':'1000/hour',
-        # 'burst': '10/min',
-        # 'sustained': '15/hour'
+        'anon':'2/minute',
+        'user':'1000/hour',
+        'burst': '10/min',
+        'sustained': '15/hour'
     }
 
 }
@@ -168,7 +168,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kathmandu'
 
 USE_I18N = True
 
