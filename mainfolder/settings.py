@@ -55,11 +55,13 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon':'2/minute',
-        'user':'1000/hour',
+        'anon':'20/minute',
+        'user':'2000/hour',
         'burst': '10/min',
         'sustained': '15/hour'
-    }
+    },
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 3,
 
 }
 AUTH_USER_MODEL = 'attendance.User'
@@ -126,7 +128,7 @@ DATABASES = {
     },
 }
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=460),  
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  
     'ROTATE_REFRESH_TOKENS': False,                 
     'BLACKLIST_AFTER_ROTATION': False,         
