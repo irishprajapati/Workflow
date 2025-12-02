@@ -97,7 +97,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
-
+class EmployeeProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Employee
+        fields = ['user', 'role', 'designation']
 class CheckInSerializer(serializers.Serializer):
     employee_id = serializers.IntegerField()
     check_in_time = serializers.DateTimeField()

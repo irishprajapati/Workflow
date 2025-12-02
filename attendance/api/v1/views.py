@@ -13,7 +13,9 @@ from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
 from rest_framework.viewsets import GenericViewSet
 from django.core.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated
 from ...permissions import *
+from ...utils import has_role
 class LoginAPI(APIView):
     @swagger_auto_schema(request_body=UserLoginSerializer,tags=['Authentication'])
     def post(self, request): #hit the post request
@@ -101,7 +103,7 @@ class AttendanceViewset(GenericViewSet):
         except Employee.DoesNotExist:
             raise ValidationError("Employee profile doesnot exist for this user")
     
-    @action(detail = False, methods = ['post'], permission_classes = [IsEmployee])
+    @action(detail = False, methods = ['post'], permission_classes = [IsAuthenticated])
     def check_in(self, request):
         emp = self.get_employee()
         today = timezone.now().date()
@@ -134,7 +136,7 @@ class AttendanceViewset(GenericViewSet):
         record.save()
         return Response({"Message":"Checked out successfully"}, status=status.HTTP_200_OK)
     
-    @action(detail=False, methods = ['get'], permission_classes = [IsEmployee])
+    @action(detail=False, methods = ['get'], permission_classes = [IsEmployee, IsHR])
     def my_attendance(self, request):
         """Employee can view their attendance logs for previous 30 days"""
         emp = self.get_employee()
@@ -159,4 +161,26 @@ class AttendanceViewset(GenericViewSet):
         ).order_by('-date')
         serializer = AttendaceRecordSerializer(records, many = True)
         return Response(serializer.data)
-        
+class EmployeeProfileViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeProfileSerializer
+    lookup_field = 'id'
+    http_method_names = ['get']
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        # If user is anonymous, return nothing
+        if not user or user.is_anonymous:
+            return Employee.objects.none()
+
+        # Check roles
+        role = user.Employee_profile.role
+
+        # HR / Admin / Manager → can view all employees
+        if role in ['HR', 'ADMIN', 'MANAGER']:
+            return Employee.objects.all().order_by("id")
+
+        # Normal employee → only their own profile
+        return Employee.objects.filter(user=user)
