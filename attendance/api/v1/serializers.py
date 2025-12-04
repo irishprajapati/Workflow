@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from rest_framework.validators import UniqueValidator
 from datetime import date
 from django.db import transaction, IntegrityError
-from .utils import LEAVE_VALIDATION_RULES
+from ...utils import LEAVE_VALIDATION_RULES
 """
 serializer to show role and username while logging
 """
@@ -125,57 +125,94 @@ class AttendanceSummarySerializer(serializers.Serializer):
     records = AttendaceRecordSerializer(many=True)
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    """optional so that employee csay they first informed"""
+    """optional so that employee can say they first informed"""
     notification_date = serializers.DateField(required=False, write_only=True)
     class Meta:
         model = LeaveRequest
         fields = "__all__"
         read_only_fields = ["status", "approved_by", "created_at", "updated_at"]
 
-        def validate(self, data):
-            """
-            validates:
-            - start_date not in past unless rule allows for some reasons
-            - start_date not before first day or current month for leave type that disallow that
-            - min_notice_days is respected (based on request date)
-            end_date > start_date
-            """
+    def validate(self, data):
+        """
+        Global validation logic:
+        - start_date and end_date required
+        - end_date >= start_date
+        - notice periods
+        - backdating rules
+        - month boundary rules
+        """
+        today = timezone.now().date()
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        notification_date = data.get("notification_date")
 
-            today = timezone.now().date()
-            start_date = data.get("start_date")
-            end_date = data.get("end_date")
-            notification_date = data.get("notification_date")
-            leave_type = data.get("leave_type") or getattr(self.instance, "leave_type", None)
+        # For updates
+        leave_type = data.get("leave_type") or getattr(self.instance, "leave_type", None)
 
-            if not start_date or not end_date:
-                raise serializers.ValidationError({"Message":"start date and end date are required"})
-            
-            if end_date < start_date:
-                raise serializers.ValidationError({"End Date":"End date cannot be before start date"})
-            
-            if notification_date:
-                request_date = notification_date
-            elif self.instance and getattr(self.instance, "created_at", None):
-                request_date = self.instance.created_at.date()
-            else:
-                request_date = today
+        # Required fields
+        if not start_date or not end_date:
+            raise serializers.ValidationError({
+                "Message": "start_date and end_date are required"
+            })
 
-            rules = LEAVE_VALIDATION_RULES.get(leave_type, {"min_notice_days":0, "allow_past_start": False, "max_backdate_days":0})
-            min_notice = rules.get("min_notice_days",0)
-            days_between_request_and_start = (start_date - request_date).days
-            if days_between_request_and_start < min_notice:
-                raise serializers.ValidationError({"start_date": f"{leave_type.capitalize()} requires at least {min_notice} day(s) notice."})
-            if start_date < today:
-                if not rules.get("allow_past_start", False):
-                    raise serializers.ValidationError({ "start_date": "Retroactive start dates are not allowed for this leave type."})
-                max_back = rules.get("max_backdate_days", 0)
+        # Date ordering
+        if end_date < start_date:
+            raise serializers.ValidationError({
+                "end_date": "End date cannot be before start date"
+            })
+
+        # Determine request date
+        if notification_date:
+            request_date = notification_date
+        elif self.instance and getattr(self.instance, "created_at", None):
+            request_date = self.instance.created_at.date()
+        else:
+            request_date = today
+
+        # Rule set
+        rules = LEAVE_VALIDATION_RULES.get(
+            leave_type,
+            {"min_notice_days": 0, "allow_past_start": False, "max_backdate_days": 0}
+        )
+
+        min_notice = rules.get("min_notice_days", 0)
+        max_back = rules.get("max_backdate_days", 0)
+        allow_past_start = rules.get("allow_past_start", False)
+
+        # Notice period
+        days_between_request_and_start = (start_date - request_date).days
+        if days_between_request_and_start < min_notice:
+            raise serializers.ValidationError({
+                "start_date": (
+                    f"{leave_type.capitalize()} requires at least "
+                    f"{min_notice} day(s) notice."
+                )
+            })
+
+        # Backdating rules
+        if start_date < today:
+            if not allow_past_start:
+                raise serializers.ValidationError({
+                    "start_date": "Retroactive start dates are not allowed for this leave type."
+                })
+
             backdated_days = (today - start_date).days
             if backdated_days > max_back:
                 raise serializers.ValidationError({
-                    "start_date": f"This leave type may be backdated up to {max_back} day(s). Currently backdated {backdated_days} day(s)."
+                    "start_date": (
+                        f"This leave type may be backdated up to {max_back} day(s). "
+                        f"Currently backdated {backdated_days} day(s)."
+                    )
                 })
 
-            current_first_day = today.replace(day=1)
-            if not rules.get("allow_past_start", False) and start_date < current_first_day:
-                raise serializers.ValidationError({"start_date": "Start date cannot be before the first day of this month for this leave type."})
-            return data
+        # Start date cannot be before first day of month
+        current_first_day = today.replace(day=1)
+        if not allow_past_start and start_date < current_first_day:
+            raise serializers.ValidationError({
+                "start_date": (
+                    "Start date cannot be before the first day of this month "
+                    "for this leave type."
+                )
+            })
+
+        return data
