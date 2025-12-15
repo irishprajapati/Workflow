@@ -100,7 +100,6 @@ class VerifyEmail(APIView):
         user.is_active = True
         user.save()
         return Response({"Message": "Email verified successfully. You can now login"})
-
 class AttendanceViewset(GenericViewSet):
     serializer_class = CheckInSerializer
     queryset = Employee.objects.all()
@@ -116,7 +115,11 @@ class AttendanceViewset(GenericViewSet):
     @action(detail = False, methods = ['post'], permission_classes = [IsAuthenticated])
     def check_in(self, request):
         emp = self.get_employee()
-        today = timezone.now().date()
+        now = timezone.localtime()
+        today = now().date()
+        serializer = CheckInSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        remarks = serializer.validated_data.get('remarks', '')
 
         with transaction.atomic():
             record, created = AttendanceRecord.objects.select_for_update().get_or_create(
@@ -127,25 +130,88 @@ class AttendanceViewset(GenericViewSet):
                 return Response({
                     "error": "Already checked in today"
                 }, status = status.HTTP_400_BAD_REQUEST)
-            record.check_in = timezone.now()
-            record.save()
-        return Response({"Message":"Checked in successfully"}, status=status.HTTP_200_OK)
+            record.check_in = now()
+            record.remarks = remarks
+            record.save(update_fields=['check_in', 'remarks'])
+        return Response({"Message":"Checked in successfully", "check_in": now}, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['post'])
     def check_out(self, request):
         emp = self.get_employee()
-        today=timezone.now().date()
-        try:
-            record = AttendanceRecord.objects.get(employee = emp, date=today)
-        except AttendanceRecord.DoesNotExist:
-            return Response({"Error":"No check-in found for today"},status = status.HTTP_400_BAD_REQUEST)
-        if record.check_out:
-            return Response({"Error":"Already checked out today"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        record.check_out = timezone.now()
+        now = timezone.localtime()
+        today=now().date()
+        serializer = CheckOutSerializer(data = request.data)
+        serializer.is_valid(raise_exception=True)
+        remarks = serializer.validated_data.get('remarks', '')
+        dept = emp.department
+        if not dept:
+            return Response({
+                "Error":"Employee not assigned to department"
+            }, status = status.HTTP_400_BAD_REQUEST)
+        shift_start = timezone.make_aware(datetime.combine(today, dept.work_start_time))
+        shift_start = timezone.localtime(shift_start)
+        shift_end = timezone.make_aware(datetime.combine(today, dept.work_end_time))
+        shift_end = timezone.localtime(shift_end)
+
+        full_day_minutes = int((shift_end-shift_start).total_seconds() // 60)
+        half_day_minutes = full_day_minutes // 2
+        with transaction.atomic():
+            try:
+                record = AttendanceRecord.objects.get(employee = emp, date=today)
+            except AttendanceRecord.DoesNotExist:
+                return Response({"Error":"No check-in found for today"},status = status.HTTP_400_BAD_REQUEST)
+            if record.check_out:
+                return Response({"Error":"Already checked out today"}, status=status.HTTP_400_BAD_REQUEST)
+        actual_checkout = now
+        effective_checkout  = min(actual_checkout, shift_end)
+
+        #worked minutes for attendance
+        worked_minutes = int(max(0, (effective_checkout - record.check_in).total_seconds() // 60))
+        record.hours_worked = round(worked_minutes / 60, 2)
+        #attendance_status 
+        if worked_minutes >= full_day_minutes:
+            record.status = 'present'
+        elif worked_minutes>= half_day_minutes:
+            record.status = 'half_day'
+        else:
+            record.status = 'absent'
+
+        # Late minutes (only if present or half-day)
+        if record.status in {'present', 'half_day'}:
+            if record.check_in > shift_start:
+                late = int((record.check_in - shift_start).total_seconds() // 60)
+                grace = getattr(dept, 'grace_minutes', 0)
+                record.late_minutes = max(0, late - grace)
+            else:
+                record.late_minutes = 0
+        else:
+            record.late_minutes = 0
+
+        # Overtime beyond shift end
+        if actual_checkout > shift_end:
+            overtime_minutes = int((actual_checkout - shift_end).total_seconds() // 60)
+            record.overtime_hours = round(overtime_minutes / 60, 2)
+        else:
+            record.overtime_hours = 0
+
+        # Save actual checkout and optional remarks
+        record.check_out = actual_checkout
+        if remarks:
+            record.remarks = remarks
         record.save()
-        return Response({"Message":"Checked out successfully"}, status=status.HTTP_200_OK)
-    @action(detail=False, methods=['get'], permission_classes=[IsEmployee, IsOfficial])
+
+        return Response(
+            {
+                "message": "Checked out successfully",
+                "status": record.status,
+                "hours_worked": record.hours_worked,
+                "late_minutes": record.late_minutes,
+                "overtime_hours": record.overtime_hours,
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsEmployee])
     def my_attendance(self, request):
         """Employee can view their attendance logs for previous 30 days"""
         emp = self.get_employee()
@@ -214,29 +280,22 @@ class EmployeeProfileViewSet(viewsets.ModelViewSet):
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
     serializer_class = LeaveRequestSerializer
-
     # Permissions
     def get_permissions(self):
         if self.action in ["list", "retrieve", "create"]:
-            return [permission() for permission in [IsEmployee | IsOfficial]]
+            return [IsEmployeeOrIsOfficial()]
         elif self.action in ["update", "partial_update", "destroy"]:
             return [IsOfficial()]
         return [IsAuthenticated()]
 
-    # Queryset logic
     def get_queryset(self):
         user = self.request.user
         employee = getattr(user, "employee_profile", None)
-
         if not employee:
             return LeaveRequest.objects.none()
-
-        # HR / Admin / Manager → full access
         if employee.role in ["HR", "ADMIN", "MANAGER"]:
             return LeaveRequest.objects.all()
-
-        # Regular employee → only their leaves
-        return LeaveRequest.objects.filter(employee=self.request.employee)
+        return LeaveRequest.objects.filter(employee=employee)
 
     # Creation logic
     def perform_create(self, serializer):
