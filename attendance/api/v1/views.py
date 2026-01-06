@@ -116,7 +116,7 @@ class AttendanceViewset(GenericViewSet):
     def check_in(self, request):
         emp = self.get_employee()
         now = timezone.localtime()
-        today = now().date()
+        today = now.date()
         serializer = CheckInSerializer(data = request.data)
         serializer.is_valid(raise_exception=True)
         remarks = serializer.validated_data.get('remarks', '')
@@ -227,7 +227,6 @@ class AttendanceViewset(GenericViewSet):
                     'id', 'date', 'status', 'late_minutes'
                 )
             )
-
         records = get_or_set_cache(cache_key, fetch_attendance, timeout=60*40)  # 40 minutes
         total_present = sum(1 for r in records if r['status'] == 'present')
         total_half_days = sum(1 for r in records if r['status'] == 'half_day')
