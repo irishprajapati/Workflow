@@ -11,7 +11,6 @@ class IsEmployee(BasePermission):
     def has_permission(self, request, view):
         emp = get_employee(request.user)
         return emp is not None and emp.role == "EMPLOYEE"
-
 class IsOfficial(BasePermission):
     def has_permission(self, request, view):
         emp = get_employee(request.user)
