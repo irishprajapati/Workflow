@@ -117,9 +117,9 @@ class AttendanceViewset(GenericViewSet):
         emp = self.get_employee()
         now = timezone.localtime()
         today = now.date()
-        serializer = CheckInSerializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        remarks = serializer.validated_data.get('remarks', '')
+        # serializer = CheckInSerializer(data = request.data)
+        # serializer.is_valid(raise_exception=True)
+        remarks = request.data.get('remarks', '')
 
         with transaction.atomic():
             record, created = AttendanceRecord.objects.select_for_update().get_or_create(
@@ -130,7 +130,7 @@ class AttendanceViewset(GenericViewSet):
                 return Response({
                     "error": "Already checked in today"
                 }, status = status.HTTP_400_BAD_REQUEST)
-            record.check_in = now()
+            record.check_in = now
             record.remarks = remarks
             record.save(update_fields=['check_in', 'remarks'])
         return Response({"Message":"Checked in successfully", "check_in": now}, status=status.HTTP_200_OK)
@@ -139,10 +139,10 @@ class AttendanceViewset(GenericViewSet):
     def check_out(self, request):
         emp = self.get_employee()
         now = timezone.localtime()
-        today=now().date()
-        serializer = CheckOutSerializer(data = request.data)
-        serializer.is_valid(raise_exception=True)
-        remarks = serializer.validated_data.get('remarks', '')
+        today=now.date()
+        # serializer = CheckOutSerializer(data = request.data)
+        # serializer.is_valid(raise_exception=True)
+        remarks = request.data.get('remarks', '')
         dept = emp.department
         if not dept:
             return Response({
