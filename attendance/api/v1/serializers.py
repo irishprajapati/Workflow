@@ -70,7 +70,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)
-
     class Meta:
         model=User
         fields=['email']
@@ -103,11 +102,11 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
         model = Employee
         fields = ['user', 'role', 'designation']
 class CheckInSerializer(serializers.Serializer):
-    employee_id = serializers.IntegerField()
-    check_in_time = serializers.DateTimeField()
+    remarks = serializers.CharField(required=False, allow_blank=True)
+    # employee_id = serializers.IntegerField()
+    # check_in_time = serializers.DateTimeField()
 class CheckOutSerializer(serializers.Serializer):
-    employee_id = serializers.IntegerField()
-    check_out_time = serializers.DateTimeField()
+    remarks = serializers.CharField(required=False, allow_blank=True)
 
 class AttendaceRecordSerializer(serializers.ModelSerializer):
     employee_username = serializers.CharField(source='employee.user.username', read_only = True)
