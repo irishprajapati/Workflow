@@ -187,7 +187,7 @@ class AttendanceViewset(GenericViewSet):
         else:
             record.late_minutes = 0
 
-        # Overtime beyond shift end
+        # Overtime beyond shift end 
         if actual_checkout > shift_end:
             overtime_minutes = int((actual_checkout - shift_end).total_seconds() // 60)
             record.overtime_hours = round(overtime_minutes / 60, 2)
@@ -211,7 +211,7 @@ class AttendanceViewset(GenericViewSet):
             status=status.HTTP_200_OK
         )
 
-    @action(detail=False, methods=['get'], permission_classes=[IsEmployee])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def my_attendance(self, request):
         """Employee can view their attendance logs for previous 30 days"""
         emp = self.get_employee()
@@ -219,19 +219,14 @@ class AttendanceViewset(GenericViewSet):
 
         def fetch_attendance():
             # only fetch this employee's last 30 days
-            return list(
-                AttendanceRecord.objects.filter(
+            return AttendanceRecord.objects.filter(
                     employee=emp,
-                    date__gte=timezone.now().date() - timezone.timedelta(days=30)
-                ).values(
-                    'id', 'date', 'status', 'late_minutes'
-                )
-            )
+                    date__gte=timezone.now().date() - timezone.timedelta(days=30))
         records = get_or_set_cache(cache_key, fetch_attendance, timeout=60*40)  # 40 minutes
-        total_present = sum(1 for r in records if r['status'] == 'present')
-        total_half_days = sum(1 for r in records if r['status'] == 'half_day')
-        total_absent = sum(1 for r in records if r['status'] == 'absent')
-        total_late = sum(1 for r in records if r['late_minutes'] > 0)
+        total_present = sum(1 for r in records if r.status == 'present')
+        total_half_days = sum(1 for r in records if r.status == 'half_day')
+        total_absent = sum(1 for r in records if r.status == 'absent')
+        total_late = sum(1 for r in records if (r.late_minutes or 0)>0)
 
         summary = {
             'total_present': total_present,
@@ -292,7 +287,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         employee = getattr(user, "employee_profile", None)
         if not employee:
             return LeaveRequest.objects.none()
-        if employee.role in ["HR", "ADMIN", "MANAGER"]:
+        if employee.role in IsOfficial:
             return LeaveRequest.objects.all()
         return LeaveRequest.objects.filter(employee=employee)
 
