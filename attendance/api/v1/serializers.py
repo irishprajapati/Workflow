@@ -100,7 +100,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
-        fields = ['user', 'role', 'designation']
+        fields = ['role', 'phone', 'designation', 'employment_type', 'is_offsite', 'is_wfh_enabled', 'department']
 class CheckInSerializer(serializers.Serializer):
     remarks = serializers.CharField(required=False, allow_blank=True)
     # employee_id = serializers.IntegerField()
@@ -127,7 +127,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     """optional so that employee can say they first informed"""
     notification_date = serializers.DateField(required=False, write_only=True)
     employee = serializers.PrimaryKeyRelatedField(
-        queryset=Employee.objects.all(),
+        queryset=User.objects.all(),
         required=False,
         allow_null=False
     )
