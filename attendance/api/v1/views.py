@@ -274,59 +274,41 @@ class EmployeeProfileViewSet(viewsets.ModelViewSet):
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
     serializer_class = LeaveRequestSerializer
+    queryset = LeaveRequest.objects.all()
+
     # Permissions
     def get_permissions(self):
         if self.action in ["list", "retrieve", "create"]:
-            return [IsEmployeeOrIsOfficial()]
+            return [IsOwnerOrOfficial()]
         elif self.action in ["update", "partial_update", "destroy"]:
             return [IsOfficial()]
-        return [IsAuthenticated()]
+        return super().get_permissions()
 
     def get_queryset(self):
-        user = self.request.user
-        employee = getattr(user, "employee_profile", None)
-        if not employee:
+        emp = getattr(self.request.user, "Employee_profile", None)
+        if not emp:
             return LeaveRequest.objects.none()
-        if employee.role in IsOfficial:
+        if emp.is_official:
             return LeaveRequest.objects.all()
-        return LeaveRequest.objects.filter(employee=employee)
-
-    # Creation logic
+        return LeaveRequest.objects.filter(employee=emp)
     def perform_create(self, serializer):
-        user = self.request.user
-        employee = getattr(user, "employee_profile", None)
+        emp = getattr(self.request.user, "Employee_profile", None)
+        if not emp:
+            raise ValidationError("Employee profile not found")
 
-        if not employee:
-            raise serializers.ValidationError({"Message": "Employee profile not found"})
-
-        # Employee can only create their own requests
-        if employee.role == "EMPLOYEE":
-            serializer.save(employee=employee)
+        # Regular employees: can only create for themselves
+        if not emp.is_official:
+            serializer.save(employee=emp)
             return
 
-        # HR / Admin / Manager can create for specific employee
-        provided_employee_id = self.request.data.get("employee")
-        if provided_employee_id:
-            try:
-                target_emp = Employee.objects.get(id=provided_employee_id)
-            except Employee.DoesNotExist:
-                raise serializers.ValidationError({
-                    "Message": "Employee does not exist with this ID"
-                })
-            serializer.save(employee=target_emp)
-            return
+        # Officials: can create for someone else (manual leave)
+        employee_id = self.request.data.get("employee")
+        if not employee_id:
+            raise ValidationError("Employee ID is required for officials")
 
-        # Provided employee not given
-        raise serializers.ValidationError({
-            "Message": "Employee ID is required for privileged roles"
-        })
+        try:
+            target_employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            raise ValidationError("Invalid employee ID")
 
-    # Standard create override
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        self.perform_create(serializer)
-
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        serializer.save(employee=target_employee)
