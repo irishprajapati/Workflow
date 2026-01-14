@@ -78,6 +78,10 @@ class Employee(models.Model):
     is_offsite=models.BooleanField(default=False)
     is_wfh_enabled=models.BooleanField(default=False)
 
+    @property
+    def is_official(self):
+        return self.role in ["HR", "ADMIN", "MANAGER"]
+
     def __str__(self):
         return f"{self.user.username}"
 class AttendanceRecord(models.Model):
