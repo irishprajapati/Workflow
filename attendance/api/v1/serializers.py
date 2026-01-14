@@ -122,101 +122,86 @@ class AttendanceSummarySerializer(serializers.Serializer):
     total_absent = serializers.IntegerField()
     total_late = serializers.IntegerField()
     records = AttendaceRecordSerializer(many=True)
-
 class LeaveRequestSerializer(serializers.ModelSerializer):
-    """optional so that employee can say they first informed"""
-    notification_date = serializers.DateField(required=False, write_only=True)
-    employee = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        required=False,
-        allow_null=False
-    )
+    """Serializer for leave requests with robust validation"""
     class Meta:
         model = LeaveRequest
         fields = "__all__"
-        read_only_fields = ["status", "approved_by", "created_at", "updated_at"]
+        read_only_fields = ["employee", "status", "approved_by", "created_at", "updated_at"]
 
     def validate(self, data):
-        """
-        Global validation logic:
-        - start_date and end_date required
-        - end_date >= start_date
-        - notice periods
-        - backdating rules
-        - month boundary rules
-        """
         today = timezone.now().date()
         start_date = data.get("start_date")
         end_date = data.get("end_date")
-        notification_date = data.get("notification_date")
-
-        # For updates
         leave_type = data.get("leave_type") or getattr(self.instance, "leave_type", None)
+        reason = data.get("reason") or ""
 
-        # Required fields
+        # 1️⃣ Required fields
         if not start_date or not end_date:
-            raise serializers.ValidationError({
-                "Message": "start_date and end_date are required"
-            })
-
-        # Date ordering
+            raise serializers.ValidationError({"Message": "start_date and end_date are required"})
         if end_date < start_date:
-            raise serializers.ValidationError({
-                "end_date": "End date cannot be before start date"
-            })
+            raise serializers.ValidationError({"end_date": "End date cannot be before start date"})
 
-        # Determine request date
-        if notification_date:
-            request_date = notification_date
-        elif self.instance and getattr(self.instance, "created_at", None):
-            request_date = self.instance.created_at.date()
-        else:
-            request_date = today
-
-        # Rule set
+        # 2️⃣ Leave rules
         rules = LEAVE_VALIDATION_RULES.get(
             leave_type,
             {"min_notice_days": 0, "allow_past_start": False, "max_backdate_days": 0}
         )
-
         min_notice = rules.get("min_notice_days", 0)
         max_back = rules.get("max_backdate_days", 0)
         allow_past_start = rules.get("allow_past_start", False)
 
-        # Notice period
-        days_between_request_and_start = (start_date - request_date).days
-        if days_between_request_and_start < min_notice:
+        # 3️⃣ Notice period
+        if (start_date - today).days < min_notice:
             raise serializers.ValidationError({
-                "start_date": (
-                    f"{leave_type.capitalize()} requires at least "
-                    f"{min_notice} day(s) notice."
-                )
+                "start_date": f"{leave_type.capitalize()} requires at least {min_notice} day(s) notice."
             })
 
-        # Backdating rules
+        # 4️⃣ Backdating
         if start_date < today:
             if not allow_past_start:
                 raise serializers.ValidationError({
                     "start_date": "Retroactive start dates are not allowed for this leave type."
                 })
-
-            backdated_days = (today - start_date).days
-            if backdated_days > max_back:
+            if (today - start_date).days > max_back:
                 raise serializers.ValidationError({
-                    "start_date": (
-                        f"This leave type may be backdated up to {max_back} day(s). "
-                        f"Currently backdated {backdated_days} day(s)."
-                    )
+                    "start_date": f"This leave type can be backdated up to {max_back} day(s)."
                 })
 
-        # Start date cannot be before first day of month
-        current_first_day = today.replace(day=1)
-        if not allow_past_start and start_date < current_first_day:
+        # 5️⃣ Start date cannot be before first day of month (if rule)
+        if not allow_past_start and start_date < today.replace(day=1):
             raise serializers.ValidationError({
-                "start_date": (
-                    "Start date cannot be before the first day of this month "
-                    "for this leave type."
-                )
+                "start_date": "Start date cannot be before the first day of this month for this leave type."
             })
+
+        # 6️⃣ Overlapping leave check
+        emp = getattr(self.context["request"].user, "employee_profile", None)
+        if emp:
+            overlapping_leaves = LeaveRequest.objects.filter(
+                employee=emp,
+                start_date__lte=end_date,
+                end_date__gte=start_date,
+            )
+            if self.instance:
+                overlapping_leaves = overlapping_leaves.exclude(id=self.instance.id)
+            if overlapping_leaves.exists():
+                raise serializers.ValidationError({
+                    "non_field_errors": "You already have a leave request that overlaps with these dates."
+                })
+
+            # Duplicate leave: same type, same dates, same reason
+            duplicate_leave = LeaveRequest.objects.filter(
+                employee=emp,
+                leave_type=leave_type,
+                start_date=start_date,
+                end_date=end_date,
+                reason__iexact=reason.strip()
+            )
+            if self.instance:
+                duplicate_leave = duplicate_leave.exclude(id=self.instance.id)
+            if duplicate_leave.exists():
+                raise serializers.ValidationError({
+                    "non_field_errors": "A leave with the same type, dates, and reason already exists."
+                })
 
         return data
